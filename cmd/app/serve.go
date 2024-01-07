@@ -106,6 +106,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().Duration("read-header-timeout", 10*time.Second, "The time allowed to read the headers of the requests in seconds")
 	cmd.Flags().String("grpc-tls-certificate", "", "the certificate file to use for secure connections - only applies to grpc-port")
 	cmd.Flags().String("grpc-tls-key", "", "the private key file to use for secure connections (without passphrase) - only applies to grpc-port")
+	cmd.Flags().StringSlice("client-signing-algorithms", []string{"ecdsa-sha2-256-nistp256", "ed25519"}, "the list of allowed client signing algorithms")
 
 	// convert "http-host" flag to "host" and "http-port" flag to be "port"
 	cmd.Flags().SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
@@ -204,6 +205,12 @@ func runServeCmd(cmd *cobra.Command, args []string) { //nolint: revive
 	// Setup the logger to dev/prod
 	log.ConfigureLogger(viper.GetString("log_type"))
 
+	algorithmConfig := viper.GetStringSlice("client-signing-algorithms")
+	algorithmRegistry, err := server.NewAlgorithmRegistry(algorithmConfig)
+	if err != nil {
+		log.Logger.Fatalf("error loading --client-signing-algorithms=%s: %v", algorithmConfig, err)
+	}
+
 	// from https://github.com/golang/glog/commit/fca8c8854093a154ff1eb580aae10276ad6b1b5f
 	_ = flag.CommandLine.Parse([]string{})
 
@@ -284,7 +291,7 @@ func runServeCmd(cmd *cobra.Command, args []string) { //nolint: revive
 		port := viper.GetInt("port")
 		metricsPort := viper.GetInt("metrics-port")
 		// StartDuplexServer will always return an error, log fatally if it's non-nil
-		if err := StartDuplexServer(ctx, cfg, ctClient, baseca, viper.GetString("host"), port, metricsPort, ip); err != http.ErrServerClosed {
+		if err := StartDuplexServer(ctx, cfg, ctClient, baseca, algorithmRegistry, viper.GetString("host"), port, metricsPort, ip); err != http.ErrServerClosed {
 			log.Logger.Fatal(err)
 		}
 		return
@@ -297,7 +304,7 @@ func runServeCmd(cmd *cobra.Command, args []string) { //nolint: revive
 
 	reg := prometheus.NewRegistry()
 
-	grpcServer, err := createGRPCServer(cfg, ctClient, baseca, ip)
+	grpcServer, err := createGRPCServer(cfg, ctClient, baseca, algorithmRegistry, ip)
 	if err != nil {
 		log.Logger.Fatal(err)
 	}
@@ -375,7 +382,7 @@ func checkServeCmdConfigFile() error {
 	return nil
 }
 
-func StartDuplexServer(ctx context.Context, cfg *config.FulcioConfig, ctClient *ctclient.LogClient, baseca certauth.CertificateAuthority, host string, port, metricsPort int, ip identity.IssuerPool) error {
+func StartDuplexServer(ctx context.Context, cfg *config.FulcioConfig, ctClient *ctclient.LogClient, baseca certauth.CertificateAuthority, algorithmRegistry *server.AlgorithmRegistry, host string, port, metricsPort int, ip identity.IssuerPool) error {
 	logger, opts := log.SetupGRPCLogging()
 
 	d := duplex.New(
@@ -394,7 +401,7 @@ func StartDuplexServer(ctx context.Context, cfg *config.FulcioConfig, ctClient *
 	)
 
 	// GRPC server
-	grpcCAServer := server.NewGRPCCAServer(ctClient, baseca, ip)
+	grpcCAServer := server.NewGRPCCAServer(ctClient, baseca, algorithmRegistry, ip)
 	protobuf.RegisterCAServer(d.Server, grpcCAServer)
 	if err := d.RegisterHandler(ctx, protobuf.RegisterCAHandlerFromEndpoint); err != nil {
 		return fmt.Errorf("registering grpc ca handler: %w", err)
