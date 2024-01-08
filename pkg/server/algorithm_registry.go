@@ -26,7 +26,7 @@ func (EcdsaSha256Algorithm) CheckHashAlgorithm(hash crypto.Hash) bool {
 type Ed25519Algorithm struct{}
 
 func (Ed25519Algorithm) CheckKeyAlgorithm(key crypto.PublicKey) bool {
-	_, ok := key.(*ed25519.PublicKey)
+	_, ok := key.(ed25519.PublicKey)
 	return ok
 }
 
