@@ -22,6 +22,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
+	"golang.org/x/exp/maps"
 	"net"
 	"net/http"
 	"os"
@@ -106,7 +108,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().Duration("read-header-timeout", 10*time.Second, "The time allowed to read the headers of the requests in seconds")
 	cmd.Flags().String("grpc-tls-certificate", "", "the certificate file to use for secure connections - only applies to grpc-port")
 	cmd.Flags().String("grpc-tls-key", "", "the private key file to use for secure connections (without passphrase) - only applies to grpc-port")
-	cmd.Flags().StringSlice("client-signing-algorithms", []string{"ecdsa-sha2-256-nistp256", "ed25519"}, "the list of allowed client signing algorithms")
+	cmd.Flags().StringSlice("client-signing-algorithms", maps.Keys(v1.SupportedAlgorithm_value), "the list of allowed client signing algorithms")
 
 	// convert "http-host" flag to "host" and "http-port" flag to be "port"
 	cmd.Flags().SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
@@ -205,7 +207,15 @@ func runServeCmd(cmd *cobra.Command, args []string) { //nolint: revive
 	// Setup the logger to dev/prod
 	log.ConfigureLogger(viper.GetString("log_type"))
 
-	algorithmConfig := viper.GetStringSlice("client-signing-algorithms")
+	algorithmStrings := viper.GetStringSlice("client-signing-algorithms")
+	var algorithmConfig []v1.SupportedAlgorithm
+	for _, s := range algorithmStrings {
+		algorithmValue, ok := v1.SupportedAlgorithm_value[s]
+		if !ok {
+			log.Logger.Fatalf("%s is not a valid value for \"client-signing-algorithms\". Try: %s", s, maps.Keys(v1.SupportedAlgorithm_value))
+		}
+		algorithmConfig = append(algorithmConfig, v1.SupportedAlgorithm(algorithmValue))
+	}
 	algorithmRegistry, err := server.NewAlgorithmRegistry(algorithmConfig)
 	if err != nil {
 		log.Logger.Fatalf("error loading --client-signing-algorithms=%s: %v", algorithmConfig, err)

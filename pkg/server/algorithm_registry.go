@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"fmt"
+	"github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 )
 
 type Algorithm interface {
@@ -38,13 +39,13 @@ type AlgorithmRegistry struct {
 	permittedAlgorithms []Algorithm
 }
 
-func NewAlgorithmRegistry(algorithmConfig []string) (*AlgorithmRegistry, error) {
+func NewAlgorithmRegistry(algorithmConfig []v1.SupportedAlgorithm) (*AlgorithmRegistry, error) {
 	var permittedAlgorithms []Algorithm
 	for _, algorithm := range algorithmConfig {
 		switch algorithm {
-		case "ecdsa-sha2-256-nistp256":
+		case v1.SupportedAlgorithm_ECDSA_SHA2_256_NISTP256:
 			permittedAlgorithms = append(permittedAlgorithms, EcdsaSha256Algorithm{})
-		case "ed25519":
+		case v1.SupportedAlgorithm_ED25519:
 			permittedAlgorithms = append(permittedAlgorithms, Ed25519Algorithm{})
 		default:
 			return nil, fmt.Errorf("unknown algorithm: %s", algorithm)
