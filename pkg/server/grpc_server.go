@@ -310,7 +310,14 @@ func (g *grpcaCAServer) Watch(_ *health.HealthCheckRequest, _ health.Health_Watc
 func getHashFuncForSignatureAlgorithm(signatureAlgorithm x509.SignatureAlgorithm) (crypto.Hash, error) {
 	switch signatureAlgorithm {
 	case x509.ECDSAWithSHA256:
+	case x509.SHA256WithRSA:
 		return crypto.SHA256, nil
+	case x509.ECDSAWithSHA384:
+	case x509.SHA384WithRSA:
+		return crypto.SHA384, nil
+	case x509.ECDSAWithSHA512:
+	case x509.SHA512WithRSA:
+		return crypto.SHA512, nil
 	case x509.PureEd25519:
 		return crypto.Hash(0), nil
 	}
