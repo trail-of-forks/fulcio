@@ -23,7 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
-	"golang.org/x/exp/maps"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"net"
 	"net/http"
 	"os"
@@ -108,7 +108,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().Duration("read-header-timeout", 10*time.Second, "The time allowed to read the headers of the requests in seconds")
 	cmd.Flags().String("grpc-tls-certificate", "", "the certificate file to use for secure connections - only applies to grpc-port")
 	cmd.Flags().String("grpc-tls-key", "", "the private key file to use for secure connections (without passphrase) - only applies to grpc-port")
-	cmd.Flags().StringSlice("client-signing-algorithms", maps.Keys(v1.SupportedAlgorithm_value), "the list of allowed client signing algorithms")
+	cmd.Flags().StringSlice("client-signing-algorithms", buildDefaultClientSigningAlgorithms([]v1.KnownSignatureAlgorithm{v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256, v1.KnownSignatureAlgorithm_ECDSA_SHA2_384_NISTP384, v1.KnownSignatureAlgorithm_ECDSA_SHA2_512_NISTP521, v1.KnownSignatureAlgorithm_ED25519}), "the list of allowed client signing algorithms")
 
 	// convert "http-host" flag to "host" and "http-port" flag to be "port"
 	cmd.Flags().SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
@@ -208,15 +208,15 @@ func runServeCmd(cmd *cobra.Command, args []string) { //nolint: revive
 	log.ConfigureLogger(viper.GetString("log_type"))
 
 	algorithmStrings := viper.GetStringSlice("client-signing-algorithms")
-	var algorithmConfig []v1.SupportedAlgorithm
+	var algorithmConfig []v1.KnownSignatureAlgorithm
 	for _, s := range algorithmStrings {
-		algorithmValue, ok := v1.SupportedAlgorithm_value[s]
-		if !ok {
-			log.Logger.Fatalf("%s is not a valid value for \"client-signing-algorithms\". Try: %s", s, maps.Keys(v1.SupportedAlgorithm_value))
+		algorithmValue, err := signature.ParseSignatureAlgorithmFlag(s)
+		if err != nil {
+			log.Logger.Fatal(err)
 		}
-		algorithmConfig = append(algorithmConfig, v1.SupportedAlgorithm(algorithmValue))
+		algorithmConfig = append(algorithmConfig, algorithmValue)
 	}
-	algorithmRegistry, err := server.NewAlgorithmRegistry(algorithmConfig)
+	algorithmRegistry, err := signature.NewAlgorithmRegistryConfig(algorithmConfig)
 	if err != nil {
 		log.Logger.Fatalf("error loading --client-signing-algorithms=%s: %v", algorithmConfig, err)
 	}
@@ -392,7 +392,7 @@ func checkServeCmdConfigFile() error {
 	return nil
 }
 
-func StartDuplexServer(ctx context.Context, cfg *config.FulcioConfig, ctClient *ctclient.LogClient, baseca certauth.CertificateAuthority, algorithmRegistry *server.AlgorithmRegistry, host string, port, metricsPort int, ip identity.IssuerPool) error {
+func StartDuplexServer(ctx context.Context, cfg *config.FulcioConfig, ctClient *ctclient.LogClient, baseca certauth.CertificateAuthority, algorithmRegistry *signature.AlgorithmRegistryConfig, host string, port, metricsPort int, ip identity.IssuerPool) error {
 	logger, opts := log.SetupGRPCLogging()
 
 	d := duplex.New(
@@ -443,4 +443,16 @@ func StartDuplexServer(ctx context.Context, cfg *config.FulcioConfig, ctClient *
 		return fmt.Errorf("duplex server: %w", err)
 	}
 	return nil
+}
+
+func buildDefaultClientSigningAlgorithms(allowedAlgorithms []v1.KnownSignatureAlgorithm) []string {
+	var algorithmStrings []string
+	for _, algorithm := range allowedAlgorithms {
+		algorithmString, err := signature.FormatSignatureAlgorithmFlag(algorithm)
+		if err != nil {
+			log.Logger.Fatal(err)
+		}
+		algorithmStrings = append(algorithmStrings, algorithmString)
+	}
+	return algorithmStrings
 }

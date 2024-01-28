@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"net"
 	"os"
 	"os/signal"
@@ -154,7 +155,7 @@ func (c *cachedTLSCert) GRPCCreds() grpc.ServerOption {
 	}))
 }
 
-func createGRPCServer(cfg *config.FulcioConfig, ctClient *ctclient.LogClient, baseca ca.CertificateAuthority, algorithmRegistry *server.AlgorithmRegistry, ip identity.IssuerPool) (*grpcServer, error) {
+func createGRPCServer(cfg *config.FulcioConfig, ctClient *ctclient.LogClient, baseca ca.CertificateAuthority, algorithmRegistry *signature.AlgorithmRegistryConfig, ip identity.IssuerPool) (*grpcServer, error) {
 	logger, opts := log.SetupGRPCLogging()
 
 	serverOpts := []grpc.ServerOption{

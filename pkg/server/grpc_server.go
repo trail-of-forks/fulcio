@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/sigstore/sigstore/pkg/signature"
 
 	health "google.golang.org/grpc/health/grpc_health_v1"
 
@@ -45,7 +46,7 @@ type GRPCCAServer interface {
 	health.HealthServer
 }
 
-func NewGRPCCAServer(ct *ctclient.LogClient, ca certauth.CertificateAuthority, algorithmRegistry *AlgorithmRegistry, ip identity.IssuerPool) GRPCCAServer {
+func NewGRPCCAServer(ct *ctclient.LogClient, ca certauth.CertificateAuthority, algorithmRegistry *signature.AlgorithmRegistryConfig, ip identity.IssuerPool) GRPCCAServer {
 	return &grpcaCAServer{
 		ct:                ct,
 		ca:                ca,
@@ -62,7 +63,7 @@ type grpcaCAServer struct {
 	fulciogrpc.UnimplementedCAServer
 	ct                *ctclient.LogClient
 	ca                certauth.CertificateAuthority
-	algorithmRegistry *AlgorithmRegistry
+	algorithmRegistry *signature.AlgorithmRegistryConfig
 	identity.IssuerPool
 }
 
@@ -151,7 +152,12 @@ func (g *grpcaCAServer) CreateSigningCertificate(ctx context.Context, request *f
 	}
 
 	// Check whether the public-key/hash algorithm combination is allowed
-	if err := g.algorithmRegistry.CheckAlgorithm(publicKey, hashFunc); err != nil {
+	isPermitted, err := g.algorithmRegistry.IsAlgorithmPermitted(publicKey, hashFunc)
+	if err != nil {
+		return nil, handleFulcioGRPCError(ctx, codes.InvalidArgument, err, err.Error())
+	}
+	if !isPermitted {
+		err = fmt.Errorf("Signing algorithm not permitted: %T, %s", publicKey, hashFunc)
 		return nil, handleFulcioGRPCError(ctx, codes.InvalidArgument, err, err.Error())
 	}
 
