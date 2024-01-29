@@ -22,8 +22,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
-	"github.com/sigstore/sigstore/pkg/signature"
 	"net"
 	"net/http"
 	"os"
@@ -33,6 +31,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
+	"github.com/sigstore/sigstore/pkg/signature"
 
 	"chainguard.dev/go-grpc-kit/pkg/duplex"
 	"github.com/goadesign/goa/grpc/middleware"

@@ -19,13 +19,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/sigstore/sigstore/pkg/signature"
 	"net"
 	"os"
 	"os/signal"
 	"runtime"
 	"sync"
 	"syscall"
+
+	"github.com/sigstore/sigstore/pkg/signature"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/goadesign/goa/grpc/middleware"

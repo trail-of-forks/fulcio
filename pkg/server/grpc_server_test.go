@@ -46,7 +46,9 @@ import (
 	"github.com/sigstore/fulcio/pkg/config"
 	"github.com/sigstore/fulcio/pkg/generated/protobuf"
 	"github.com/sigstore/fulcio/pkg/identity"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -84,7 +86,11 @@ func setupGRPCForTest(ctx context.Context, t *testing.T, cfg *config.FulcioConfi
 	lis = bufconn.Listen(bufSize)
 	s := grpc.NewServer(grpc.UnaryInterceptor(passFulcioConfigThruContext(cfg)))
 	ip := NewIssuerPool(cfg)
-	protobuf.RegisterCAServer(s, NewGRPCCAServer(ctl, ca, ip))
+	algorithmRegistry, err := signature.NewAlgorithmRegistryConfig([]v1.KnownSignatureAlgorithm{v1.KnownSignatureAlgorithm_ECDSA_SHA2_256_NISTP256})
+	if err != nil {
+		t.Error(err)
+	}
+	protobuf.RegisterCAServer(s, NewGRPCCAServer(ctl, ca, algorithmRegistry, ip))
 	go func() {
 		if err := s.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			t.Errorf("Server exited with error: %v", err)
